@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Sparkles, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Sparkles, AlertCircle, KeyRound } from 'lucide-react'
 import Link from 'next/link'
 import type { Channel } from '@/types'
 import { COLOR_THEME_MAP } from '@/types'
@@ -15,6 +15,7 @@ export default function NewIdeaPage() {
   const [selectedChannel, setSelectedChannel] = useState<string>('')
   const [theme, setTheme] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [apiError, setApiError] = useState<{ type: 'key_missing' | 'quota' | 'general'; message: string } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -47,6 +48,7 @@ export default function NewIdeaPage() {
       return
     }
     setIsGenerating(true)
+    setApiError(null)
 
     try {
       const res = await fetch('/api/ideas/generate', {
@@ -55,12 +57,25 @@ export default function NewIdeaPage() {
         body: JSON.stringify({ channelId: selectedChannel, theme: theme || undefined }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) {
+        const msg: string = data.error || 'AI生成に失敗しました'
+        if (msg.includes('APIキーが設定されていません')) {
+          setApiError({ type: 'key_missing', message: msg })
+        } else if (res.status === 429 || msg.includes('利用制限')) {
+          setApiError({ type: 'quota', message: msg })
+        } else {
+          setApiError({ type: 'general', message: msg })
+        }
+        toast.error(msg)
+        return
+      }
 
       toast.success('企画が生成されました！')
       router.push(`/ideas/${data.idea.id}`)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'AI生成に失敗しました')
+      const msg = err instanceof Error ? err.message : 'AI生成に失敗しました'
+      setApiError({ type: 'general', message: msg })
+      toast.error(msg)
     } finally {
       setIsGenerating(false)
     }
@@ -81,9 +96,51 @@ export default function NewIdeaPage() {
         </div>
       </div>
 
+      {/* API エラーバナー */}
+      {apiError && (
+        <div className={`flex items-start gap-3 rounded-2xl p-4 ${
+          apiError.type === 'key_missing'
+            ? 'bg-amber-50 border border-amber-200'
+            : apiError.type === 'quota'
+            ? 'bg-orange-50 border border-orange-200'
+            : 'bg-red-50 border border-red-200'
+        }`}>
+          {apiError.type === 'key_missing'
+            ? <KeyRound size={18} className="text-amber-500 mt-0.5 shrink-0" />
+            : <AlertCircle size={18} className={`mt-0.5 shrink-0 ${apiError.type === 'quota' ? 'text-orange-500' : 'text-red-500'}`} />
+          }
+          <div>
+            <p className={`font-bold text-sm ${
+              apiError.type === 'key_missing' ? 'text-amber-800'
+              : apiError.type === 'quota' ? 'text-orange-800'
+              : 'text-red-800'
+            }`}>
+              {apiError.type === 'key_missing' ? 'Gemini APIキーが設定されていません'
+               : apiError.type === 'quota' ? 'APIリクエスト制限'
+               : 'エラーが発生しました'}
+            </p>
+            <p className={`text-xs mt-1 ${
+              apiError.type === 'key_missing' ? 'text-amber-700'
+              : apiError.type === 'quota' ? 'text-orange-700'
+              : 'text-red-700'
+            }`}>{apiError.message}</p>
+            {apiError.type === 'key_missing' && (
+              <p className="text-xs mt-2 text-amber-600">
+                Netlify の環境変数に <code className="bg-amber-100 px-1 rounded">GEMINI_API_KEY</code> を設定してください。
+              </p>
+            )}
+            {apiError.type === 'quota' && (
+              <p className="text-xs mt-2 text-orange-600">
+                1〜2分待ってから再度お試しください。
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {isGenerating ? (
         <div className="card py-8">
-          <AiGeneratingState message="AIが動画企画を作成中..." />
+          <AiGeneratingState message="Gemini AIが動画企画を作成中..." />
           <div className="mt-4 space-y-2 px-4">
             {['タイトル', 'ストーリー', 'セリフ', 'ナレーション', 'テロップ', '画像プロンプト', '投稿文', 'ハッシュタグ'].map((item, i) => (
               <div key={item} className="flex items-center gap-2 text-sm text-gray-400">
@@ -173,7 +230,7 @@ export default function NewIdeaPage() {
           </button>
 
           <p className="text-center text-xs text-gray-400">
-            ※ OpenAI GPT-4oを使用します。生成には10〜30秒かかります。
+            ※ Google Gemini 1.5 Flash を使用します。生成には5〜15秒かかります。
           </p>
         </>
       )}

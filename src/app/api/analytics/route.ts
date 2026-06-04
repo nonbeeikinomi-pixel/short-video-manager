@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
-import OpenAI from 'openai'
+import { createGeminiClient, toJapaneseError } from '@/lib/gemini/client'
 import { buildAnalysisPrompt } from '@/lib/openai/prompts'
 
 export async function POST(request: NextRequest) {
@@ -23,21 +23,23 @@ export async function POST(request: NextRequest) {
     let aiAnalysis = null
 
     if (generateAiAnalysis && idea) {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      const genAI = createGeminiClient()
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        },
+      })
+
       const prompt = buildAnalysisPrompt({
         views, likes, comments, saves, shares, follower_gain, notes,
         videoTitle: idea.title,
         channelName: ((idea.channels as unknown) as { name: string } | null)?.name || '',
       })
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.7,
-      })
-
-      const content = completion.choices[0]?.message?.content
+      const result = await model.generateContent(prompt)
+      const content = result.response.text()
       if (content) aiAnalysis = JSON.parse(content)
     }
 
@@ -52,9 +54,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ data, aiAnalysis })
   } catch (err: unknown) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'エラーが発生しました' },
-      { status: 500 }
-    )
+    console.error('分析エラー:', err)
+    const { message, status } = toJapaneseError(err)
+    return NextResponse.json({ error: message }, { status })
   }
 }
