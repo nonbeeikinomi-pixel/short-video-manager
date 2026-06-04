@@ -230,7 +230,7 @@ export default function NewIdeaPage() {
           </button>
 
           <p className="text-center text-xs text-gray-400">
-            ※ Google Gemini 1.5 Flash を使用します。生成には5〜15秒かかります。
+            ※ Google Gemini 2.0 Flash を使用します。生成には5〜15秒かかります。
           </p>
         </>
       )}

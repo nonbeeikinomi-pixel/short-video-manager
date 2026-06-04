@@ -6,7 +6,7 @@ AIを活用したショート動画の企画・管理・量産Webアプリです
 
 - **チャンネル管理**: 複数チャンネル（50チャンネル以上対応）の一元管理
 - **キャラクター設定**: チャンネルごとにキャラクター・ルールを設定
-- **AI企画生成**: Google Gemini 1.5 Flash が動画企画を全自動生成（無料枠対応）
+- **AI企画生成**: Google Gemini 2.0 Flash が動画企画を全自動生成（無料枠対応）
   - タイトル / 動画尺 / 冒頭フック / ストーリー / セリフ / ナレーション / テロップ / 画像生成プロンプト / 動画生成プロンプト / サムネイル文言 / 投稿文 / ハッシュタグ / CTA
 - **投稿カレンダー**: 月別カレンダーで投稿スケジュール管理
 - **分析管理**: 投稿実績の手入力 + AI改善提案
@@ -64,7 +64,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 3. 「Create API key」をクリック
 4. 生成されたキーを `GEMINI_API_KEY` に設定
 
-> **無料枠について**: Gemini 1.5 Flash は無料枠で利用可能です。  
+> **無料枠について**: Gemini 2.0 Flash は無料枠で利用可能です。  
 > 制限: 15 RPM（リクエスト/分）、100万トークン/日
 
 ### 4. Supabaseセットアップ
@@ -171,7 +171,7 @@ Netlify → Site settings → Environment variables で以下を設定：
 | Next.js 14 (App Router) | フロントエンド・API Routes |
 | Tailwind CSS | スタイリング |
 | Supabase | 認証・データベース・ストレージ |
-| Google Gemini 1.5 Flash | AI企画生成・分析（無料枠対応） |
+| Google Gemini 2.0 Flash | AI企画生成・分析（無料枠対応） |
 | Netlify | ホスティング・デプロイ |
 | Discord Webhook | 通知 |
 
