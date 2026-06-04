@@ -1,22 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { Mail, Lock, Sparkles } from 'lucide-react'
+import { Mail, Lock, Sparkles, AlertCircle } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
-  const router = useRouter()
+  const [errorMsg, setErrorMsg] = useState('')
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  useEffect(() => {
+    const urlError = searchParams.get('error')
+    if (urlError === 'auth_callback_error') {
+      setErrorMsg('メール確認中にエラーが発生しました。もう一度お試しください。')
+    }
+  }, [searchParams])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setErrorMsg('')
 
     try {
       if (isSignUp) {
@@ -28,23 +37,109 @@ export default function LoginPage() {
         if (error) throw error
         toast.success('確認メールを送信しました。メールをご確認ください。')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        router.push('/dashboard')
-        router.refresh()
+        if (!data.session) {
+          throw new Error('メールアドレスの確認が完了していません。確認メールをご確認ください。')
+        }
+        // フルページ遷移でクッキーを確実にサーバーへ送信
+        window.location.href = '/dashboard'
+        return
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'エラーが発生しました'
+      let displayMessage = message
       if (message.includes('Invalid login credentials')) {
-        toast.error('メールアドレスまたはパスワードが正しくありません')
-      } else {
-        toast.error(message)
+        displayMessage = 'メールアドレスまたはパスワードが正しくありません'
+      } else if (message.includes('Email not confirmed')) {
+        displayMessage = 'メールアドレスが未確認です。確認メールをご確認ください。'
       }
+      setErrorMsg(displayMessage)
+      toast.error(displayMessage)
     } finally {
       setIsLoading(false)
     }
   }
 
+  return (
+    <div className="bg-white rounded-3xl shadow-2xl p-8">
+      <div className="flex items-center gap-2 mb-6">
+        <Sparkles className="text-pink-500" size={20} />
+        <h2 className="text-xl font-bold text-gray-800">
+          {isSignUp ? 'アカウント作成' : 'ログイン'}
+        </h2>
+      </div>
+
+      <form onSubmit={handleAuth} className="space-y-4">
+        {errorMsg && (
+          <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        <div>
+          <label className="label-base">メールアドレス</label>
+          <div className="relative">
+            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="example@email.com"
+              required
+              className="input-base pl-10 focus:ring-pink-400"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="label-base">パスワード</label>
+          <div className="relative">
+            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="6文字以上"
+              minLength={6}
+              required
+              className="input-base pl-10 focus:ring-pink-400"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="btn-primary w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white py-3 text-base mt-2"
+        >
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              処理中...
+            </span>
+          ) : (
+            isSignUp ? 'アカウントを作成' : 'ログイン'
+          )}
+        </button>
+      </form>
+
+      <div className="mt-4 text-center">
+        <button
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="text-sm text-gray-500 hover:text-pink-500 transition-colors"
+        >
+          {isSignUp
+            ? 'すでにアカウントをお持ちの方はこちら'
+            : 'アカウントをお持ちでない方はこちら'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* 背景グラデーション */}
@@ -61,74 +156,9 @@ export default function LoginPage() {
           <p className="text-white/80 text-sm mt-1">ショート動画量産システム</p>
         </div>
 
-        {/* ログインカード */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="text-pink-500" size={20} />
-            <h2 className="text-xl font-bold text-gray-800">
-              {isSignUp ? 'アカウント作成' : 'ログイン'}
-            </h2>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="label-base">メールアドレス</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="example@email.com"
-                  required
-                  className="input-base pl-10 focus:ring-pink-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="label-base">パスワード</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="6文字以上"
-                  minLength={6}
-                  required
-                  className="input-base pl-10 focus:ring-pink-400"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white py-3 text-base mt-2"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  処理中...
-                </span>
-              ) : (
-                isSignUp ? 'アカウントを作成' : 'ログイン'
-              )}
-            </button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-gray-500 hover:text-pink-500 transition-colors"
-            >
-              {isSignUp
-                ? 'すでにアカウントをお持ちの方はこちら'
-                : 'アカウントをお持ちでない方はこちら'}
-            </button>
-          </div>
-        </div>
+        <Suspense fallback={<div className="bg-white rounded-3xl shadow-2xl p-8 h-64 animate-pulse" />}>
+          <LoginForm />
+        </Suspense>
 
         <p className="text-center text-white/60 text-xs mt-6">
           © 2024 ショート動画マネージャー

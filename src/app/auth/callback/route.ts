@@ -7,6 +7,10 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // Netlify など reverse proxy 環境では x-forwarded-host が公開ドメインになる
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const baseUrl = forwardedHost ? `https://${forwardedHost}` : origin
+
   if (code) {
     const cookieStore = cookies()
     const supabase = createServerClient(
@@ -26,9 +30,9 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${baseUrl}${next}`)
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
+  return NextResponse.redirect(`${baseUrl}/login?error=auth_callback_error`)
 }
